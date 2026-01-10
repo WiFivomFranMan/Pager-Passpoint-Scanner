@@ -31,9 +31,20 @@ A Passpoint/Hotspot 2.0 reconnaissance tool for the WiFi Pineapple Pager. Detect
 
 - WiFi Pineapple Pager
 - Monitor mode capable WiFi adapter (wlan1mon)
-- wpa_supplicant with interworking support
+- wpa_supplicant with interworking/HS2.0 support
 
 ## Installation
+
+### Prerequisites
+
+Install wpa_supplicant with Hotspot 2.0 support (required for ANQP queries):
+
+```bash
+opkg update
+opkg install wpa-supplicant-openssl
+```
+
+> **Note**: The standard `wpa-supplicant` package may not include HS2.0/interworking support. The `-openssl` variant includes these features.
 
 ### On WiFi Pineapple Pager
 
