@@ -2389,8 +2389,8 @@ show_config_menu() {
         LOG "  - No venue/operator info"
         LOG ""
         LOG "[A] Start Beacon-Only Scan"
-        LOG "[B] Install wpa-supplicant"
-        LOG "[C] Exit"
+        LOG "[B] Exit"
+        LOG "[>] Install wpa-supplicant"
     fi
     LOG ""
 }
@@ -2421,14 +2421,14 @@ configure_scan() {
                     return 0
                     ;;
                 B)
+                    LOG "Goodbye"
+                    exit 0
+                    ;;
+                R|RIGHT|">")
                     # Try to install
                     if install_wpa_supplicant; then
                         check_dependencies
                     fi
-                    ;;
-                C)
-                    LOG "Goodbye"
-                    exit 0
                     ;;
             esac
         fi
