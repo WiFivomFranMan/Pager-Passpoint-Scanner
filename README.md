@@ -23,6 +23,9 @@ A Passpoint/Hotspot 2.0 reconnaissance tool for the WiFi Pineapple Pager. Detect
   - Level of Assurance (Baseline/Enhanced)
   - QoS Tier (Bronze/Silver)
   - Identity (Anonymous/Identified)
+- **PLMN Carrier Lookup**: Identifies mobile carriers from 3GPP PLMN codes (100+ carriers):
+  - US: AT&T, Verizon, T-Mobile, Sprint, U.S. Cellular
+  - International: Vodafone, Orange, EE, Telstra, NTT DoCoMo, China Mobile, and more
 
 ## Requirements
 
@@ -76,7 +79,7 @@ Channel: 132 | RSSI: -45dBm
   Venue: Educational (type 1) [eng] University Campus
   Operator: [eng] Campus WiFi
   NAI Realms: eduroam.edu, openroaming.org
-  PLMNs: 310-410, 311-480
+  PLMNs: 310-410 (AT&T), 311-480 (Verizon), 310-260 (T-Mobile)
   Domains: eduroam.edu, openroaming.org
 ```
 
@@ -132,6 +135,27 @@ N4:       Reserved
 | 001907 | AT&T |
 | 00019E | T-Mobile |
 | 0022F1 | Verizon |
+
+## PLMN Carrier Database
+
+The scanner includes a built-in database of 100+ mobile carriers for automatic PLMN lookup:
+
+| Country | Carriers |
+|---------|----------|
+| United States | AT&T, Verizon, T-Mobile, Sprint, U.S. Cellular, Metro PCS |
+| Canada | Rogers, Bell, Telus, SaskTel |
+| United Kingdom | EE, Vodafone UK, O2 UK, Three UK |
+| Germany | Telekom, Vodafone, O2, Telefonica |
+| France | Orange, SFR, Free Mobile, Bouygues |
+| Spain | Movistar, Vodafone, Orange |
+| Italy | TIM, Vodafone, Wind, 3 Italy |
+| Netherlands | KPN, Vodafone NL, T-Mobile NL |
+| Australia | Telstra, Optus, Vodafone AU |
+| Japan | NTT DoCoMo, SoftBank, KDDI au |
+| South Korea | SK Telecom, KT, LG U+ |
+| China | China Mobile, China Unicom, China Telecom |
+| India | Airtel, Vodafone Idea, Jio |
+| + more | Singapore, Hong Kong, Taiwan, UAE, Saudi Arabia, etc. |
 
 ## License
 

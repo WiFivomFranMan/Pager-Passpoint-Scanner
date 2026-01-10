@@ -828,11 +828,29 @@ parse_wpa_anqp() {
         found_anqp=1
     fi
 
-    # 3GPP/PLMN - decode from hex
+    # 3GPP/PLMN - decode from hex with carrier name lookup
     local gpp=$(grep "anqp_3gpp=" "$infile" 2>/dev/null | cut -d= -f2-)
     if [ -n "$gpp" ]; then
-        local plmn_decoded=$(echo "$gpp" | parse_3gpp_hex)
-        if [ -n "$plmn_decoded" ]; then
+        local plmn_raw=$(echo "$gpp" | parse_3gpp_hex)
+        if [ -n "$plmn_raw" ]; then
+            # Add carrier names to each PLMN
+            local plmn_decoded=""
+            local IFS_OLD="$IFS"
+            IFS=','
+            for plmn in $plmn_raw; do
+                plmn=$(echo "$plmn" | tr -d ' ')
+                local mcc=$(echo "$plmn" | cut -d'-' -f1)
+                local mnc=$(echo "$plmn" | cut -d'-' -f2)
+                local carrier=$(lookup_plmn "$mcc" "$mnc")
+                if [ -n "$carrier" ]; then
+                    [ -n "$plmn_decoded" ] && plmn_decoded="$plmn_decoded, "
+                    plmn_decoded="$plmn_decoded$plmn ($carrier)"
+                else
+                    [ -n "$plmn_decoded" ] && plmn_decoded="$plmn_decoded, "
+                    plmn_decoded="$plmn_decoded$plmn"
+                fi
+            done
+            IFS="$IFS_OLD"
             LOG "  [PLMNs] $plmn_decoded"
             echo "ANQP_3GPP|$bssid|$ssid|$plmn_decoded" >> "$RESULTS_FILE"
         else
@@ -1117,6 +1135,155 @@ decode_anqp_rcoi() {
         fi
     done
     echo "$result"
+}
+
+# Lookup PLMN (MCC-MNC) carrier name
+# Top 100 carriers from ITU E.212 database
+lookup_plmn() {
+    local mcc="$1"
+    local mnc="$2"
+    local plmn="${mcc}-${mnc}"
+
+    case "$plmn" in
+        # United States - Major Carriers
+        310-410|310-280|310-380|310-170|310-980|311-180) echo "AT&T" ;;
+        310-260|310-200|310-210|310-220|310-230|310-240|310-250|310-270|310-310|310-490|310-530|310-660|310-800|311-490) echo "T-Mobile" ;;
+        311-480|311-481|311-482|311-483|311-484|311-485|311-486|311-487|311-488|311-489) echo "Verizon" ;;
+        310-010|310-012|310-013|310-590|310-820|310-890|311-110|311-270|311-271|311-272|311-273|311-274|311-275|311-276|311-277|311-278|311-279|311-280|311-281|311-282|311-283|311-284|311-285|311-286|311-287|311-288|311-289|311-390|311-440|311-590) echo "Verizon" ;;
+        312-530) echo "Sprint" ;;
+        310-120) echo "Sprint (T-Mobile)" ;;
+        311-660) echo "Metro PCS" ;;
+        310-730|311-220|311-225|311-580) echo "U.S. Cellular" ;;
+        310-370|310-470) echo "Docomo Pacific" ;;
+
+        # Canada
+        302-220|302-221) echo "Telus" ;;
+        302-370|302-720) echo "Rogers" ;;
+        302-490|302-500|302-510) echo "Bell" ;;
+        302-610|302-640) echo "Bell MTS" ;;
+        302-680) echo "SaskTel" ;;
+
+        # United Kingdom
+        234-010|234-011|234-012|234-002) echo "O2 UK" ;;
+        234-015|234-016|234-077|234-091) echo "Vodafone UK" ;;
+        234-020|234-094) echo "Hutchison 3G UK" ;;
+        234-030|234-031|234-032|234-033|234-034|234-086|235-001|235-002) echo "EE" ;;
+        234-050) echo "JT (Jersey)" ;;
+        234-055) echo "Sure (Guernsey)" ;;
+        234-058) echo "Manx Telecom" ;;
+
+        # Germany
+        262-01|262-06) echo "Telekom Deutschland" ;;
+        262-02|262-04|262-09) echo "Vodafone Germany" ;;
+        262-03|262-05|262-77) echo "Telefonica Germany" ;;
+        262-07|262-08|262-11) echo "O2 Germany" ;;
+
+        # France
+        208-01|208-02) echo "Orange France" ;;
+        208-10|208-11|208-13) echo "SFR" ;;
+        208-15|208-16|208-35|208-36) echo "Free Mobile" ;;
+        208-20|208-21|208-88) echo "Bouygues Telecom" ;;
+
+        # Spain
+        214-01|214-06) echo "Vodafone Spain" ;;
+        214-03|214-07) echo "Orange Spain" ;;
+        214-04|214-05) echo "Movistar" ;;
+
+        # Italy
+        222-01|222-10) echo "TIM Italy" ;;
+        222-10) echo "Vodafone Italy" ;;
+        222-88) echo "Wind Italy" ;;
+        222-99) echo "3 Italy" ;;
+
+        # Netherlands
+        204-04) echo "Vodafone NL" ;;
+        204-08|204-10|204-12|204-69) echo "KPN" ;;
+        204-16|204-20) echo "T-Mobile NL" ;;
+
+        # Australia
+        505-01|505-71|505-72) echo "Telstra" ;;
+        505-02|505-90) echo "Optus" ;;
+        505-03|505-06|505-12) echo "Vodafone AU" ;;
+
+        # Japan
+        440-10|441-10) echo "NTT DoCoMo" ;;
+        440-20|441-20) echo "SoftBank" ;;
+        440-50|441-50) echo "KDDI au" ;;
+        440-51|441-51) echo "KDDI au" ;;
+
+        # South Korea
+        450-05|450-11) echo "SK Telecom" ;;
+        450-08) echo "KT" ;;
+        450-06) echo "LG U+" ;;
+
+        # China
+        460-00|460-02|460-04|460-07|460-08) echo "China Mobile" ;;
+        460-01|460-06|460-09) echo "China Unicom" ;;
+        460-03|460-05|460-11) echo "China Telecom" ;;
+
+        # India
+        404-10|404-45|404-49|405-845|405-846) echo "Airtel India" ;;
+        404-86|404-84|405-854) echo "Vodafone Idea" ;;
+        405-840|405-854|405-855|405-856|405-857|405-858) echo "Jio" ;;
+
+        # Mexico
+        334-020) echo "Telcel" ;;
+        334-030|334-090) echo "Movistar Mexico" ;;
+        334-050) echo "AT&T Mexico" ;;
+
+        # Brazil
+        724-10|724-11|724-23) echo "Vivo Brazil" ;;
+        724-02|724-03|724-04) echo "TIM Brazil" ;;
+        724-05|724-31) echo "Claro Brazil" ;;
+        724-15|724-39) echo "Oi Brazil" ;;
+
+        # Switzerland
+        228-01) echo "Swisscom" ;;
+        228-02) echo "Sunrise" ;;
+        228-03) echo "Salt" ;;
+
+        # Sweden
+        240-01) echo "Telia Sweden" ;;
+        240-02) echo "3 Sweden" ;;
+        240-07) echo "Tele2 Sweden" ;;
+
+        # Norway
+        242-01) echo "Telenor Norway" ;;
+        242-02) echo "Telia Norway" ;;
+
+        # Denmark
+        238-01|238-10) echo "TDC Denmark" ;;
+        238-02|238-77) echo "Telenor Denmark" ;;
+        238-06) echo "3 Denmark" ;;
+        238-20) echo "Telia Denmark" ;;
+
+        # Singapore
+        525-01) echo "SingTel" ;;
+        525-03) echo "M1" ;;
+        525-05) echo "StarHub" ;;
+
+        # Hong Kong
+        454-00|454-10|454-11) echo "CSL Hong Kong" ;;
+        454-06|454-15|454-16) echo "SmarTone" ;;
+        454-12|454-13) echo "China Mobile HK" ;;
+
+        # Taiwan
+        466-01) echo "Far EasTone" ;;
+        466-92|466-93) echo "Chunghwa Telecom" ;;
+        466-97) echo "Taiwan Mobile" ;;
+
+        # UAE
+        424-02) echo "Etisalat" ;;
+        424-03) echo "du" ;;
+
+        # Saudi Arabia
+        420-01) echo "STC" ;;
+        420-03) echo "Mobily" ;;
+        420-04) echo "Zain SA" ;;
+
+        # Default
+        *) echo "" ;;
+    esac
 }
 
 # Decode Domain Name List: format is [len][domain][len][domain]...
