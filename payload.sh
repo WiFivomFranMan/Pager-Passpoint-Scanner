@@ -167,24 +167,8 @@ install_wpa_supplicant() {
     LOG "Internet OK. Updating packages..."
     SPINNER ON
 
-    # Update package list
-    if ! opkg update >/dev/null 2>&1; then
-        SPINNER OFF
-        LOG ""
-        LOG "ERROR: Failed to update package list"
-        LOG ""
-        LOG "[A] Retry  [B] Continue without"
-        local btn=$(WAIT_FOR_INPUT)
-        case "$btn" in
-            A)
-                install_wpa_supplicant
-                return $?
-                ;;
-            *)
-                return 1
-                ;;
-        esac
-    fi
+    # Update package list (ignore errors - some feeds may 404 but base feeds work)
+    opkg update >/dev/null 2>&1 || true
 
     LOG "Installing wpad-openssl..."
 
@@ -2399,7 +2383,7 @@ show_config_menu() {
         LOG ""
         LOG "[A] Start Beacon-Only Scan"
         LOG "[B] Exit"
-        LOG "[>] Install wpa-supplicant"
+        LOG "[>] Install wpad-openssl"
     fi
     LOG ""
 }
