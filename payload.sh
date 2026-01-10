@@ -100,6 +100,141 @@ trap cleanup SIGINT SIGTERM
 # Note: EXIT trap disabled to prevent issues with subshell exits
 
 # =============================================================================
+# DEPENDENCY CHECK
+# =============================================================================
+# ANQP queries require wpa-supplicant with HS2.0/interworking support
+# Without it, we can only do beacon scanning (detect Passpoint APs, read beacon RCOIs)
+
+ANQP_AVAILABLE=false
+
+# Check if wpa_supplicant with HS2.0 support is installed
+check_wpa_supplicant() {
+    # Check if wpa-supplicant-openssl is installed (has HS2.0 support)
+    if opkg list-installed 2>/dev/null | grep -q "wpa-supplicant-openssl"; then
+        return 0
+    fi
+    # Check if wpa-supplicant-mesh-openssl is installed (also has HS2.0)
+    if opkg list-installed 2>/dev/null | grep -q "wpa-supplicant-mesh-openssl"; then
+        return 0
+    fi
+    # Check if wpa_cli exists and supports interworking
+    if command -v wpa_cli >/dev/null 2>&1; then
+        # Try to check if interworking is supported
+        if wpa_cli -h 2>&1 | grep -q "interworking"; then
+            return 0
+        fi
+    fi
+    return 1
+}
+
+# Check internet connectivity
+check_internet() {
+    # Try to ping opkg server or common DNS
+    if ping -c 1 -W 3 downloads.openwrt.org >/dev/null 2>&1; then
+        return 0
+    fi
+    if ping -c 1 -W 3 8.8.8.8 >/dev/null 2>&1; then
+        return 0
+    fi
+    return 1
+}
+
+# Install wpa-supplicant-openssl
+install_wpa_supplicant() {
+    LOG ""
+    LOG "Installing wpa-supplicant-openssl..."
+    LOG ""
+
+    # Check internet first
+    LOG "Checking internet connection..."
+    if ! check_internet; then
+        LOG ""
+        LOG "ERROR: No internet connection!"
+        LOG ""
+        LOG "Connect to internet and try again,"
+        LOG "or continue with beacon-only mode."
+        LOG ""
+        LOG "[A] Retry  [B] Continue without"
+        local btn=$(WAIT_FOR_INPUT)
+        case "$btn" in
+            A)
+                install_wpa_supplicant
+                return $?
+                ;;
+            *)
+                return 1
+                ;;
+        esac
+    fi
+
+    LOG "Internet OK. Updating packages..."
+    SPINNER ON
+
+    # Update package list
+    if ! opkg update >/dev/null 2>&1; then
+        SPINNER OFF
+        LOG ""
+        LOG "ERROR: Failed to update package list"
+        LOG ""
+        LOG "[A] Retry  [B] Continue without"
+        local btn=$(WAIT_FOR_INPUT)
+        case "$btn" in
+            A)
+                install_wpa_supplicant
+                return $?
+                ;;
+            *)
+                return 1
+                ;;
+        esac
+    fi
+
+    LOG "Installing wpa-supplicant-openssl..."
+
+    # Install the package
+    if ! opkg install wpa-supplicant-openssl >/dev/null 2>&1; then
+        SPINNER OFF
+        LOG ""
+        LOG "ERROR: Installation failed!"
+        LOG ""
+        LOG "Try manually:"
+        LOG "  opkg update"
+        LOG "  opkg install wpa-supplicant-openssl"
+        LOG ""
+        LOG "[A] Retry  [B] Continue without"
+        local btn=$(WAIT_FOR_INPUT)
+        case "$btn" in
+            A)
+                install_wpa_supplicant
+                return $?
+                ;;
+            *)
+                return 1
+                ;;
+        esac
+    fi
+
+    SPINNER OFF
+    LOG ""
+    LOG "SUCCESS! wpa-supplicant-openssl installed."
+    LOG "ANQP queries now available."
+    LOG ""
+    sleep 2
+    return 0
+}
+
+# Check dependencies and set ANQP_AVAILABLE flag
+check_dependencies() {
+    if check_wpa_supplicant; then
+        ANQP_AVAILABLE=true
+        return 0
+    else
+        ANQP_AVAILABLE=false
+        return 1
+    fi
+}
+
+# =============================================================================
 # UTILITY FUNCTIONS
 # =============================================================================
 
@@ -2200,15 +2335,24 @@ show_results_summary() {
     local op_count=$(grep -c "^ANQP_OPERATOR" "$RESULTS_FILE" 2>/dev/null); op_count=${op_count:-0}
 
     local rcoi_count=$(grep -c "^ANQP_RCOI" "$RESULTS_FILE" 2>/dev/null); rcoi_count=${rcoi_count:-0}
+    local beacon_rcoi_count=$(grep -c "^BEACON_RCOI" "$RESULTS_FILE" 2>/dev/null); beacon_rcoi_count=${beacon_rcoi_count:-0}
 
-    LOG "ANQP Data from $ap_count APs:"
-    LOG "  RCOI:          $rcoi_count"
-    LOG "  Venue Info:    $venue_count"
-    LOG "  Operator:      $op_count"
-    LOG "  NAI Realms:    $nai_count"
-    LOG "  3GPP PLMNs:    $gpp_count"
-    LOG "  Domain Names:  $domain_count"
-    LOG "  Venue URLs:    $url_count"
+    if $ANQP_AVAILABLE; then
+        LOG "ANQP Data from $ap_count APs:"
+        LOG "  RCOI:          $rcoi_count"
+        LOG "  Venue Info:    $venue_count"
+        LOG "  Operator:      $op_count"
+        LOG "  NAI Realms:    $nai_count"
+        LOG "  3GPP PLMNs:    $gpp_count"
+        LOG "  Domain Names:  $domain_count"
+        LOG "  Venue URLs:    $url_count"
+    else
+        LOG "Beacon Data from $ap_count APs:"
+        LOG "  Beacon RCOIs:  $beacon_rcoi_count"
+        LOG ""
+        LOG "(Install wpa-supplicant-openssl"
+        LOG " for full ANQP data)"
+    fi
     LOG ""
     LOG "Results: $RESULTS_FILE"
 
@@ -2223,28 +2367,71 @@ show_config_menu() {
     LOG "PASSPOINT SCANNER"
     LOG "================="
     LOG ""
-    LOG "Scans for Hotspot 2.0 APs"
-    LOG "and queries ANQP data"
-    LOG ""
-    LOG "[A] Start Scan"
-    LOG "[B] Exit"
+
+    if $ANQP_AVAILABLE; then
+        LOG "Mode: FULL (Beacon + ANQP)"
+        LOG "  - Detect Passpoint APs"
+        LOG "  - Query ANQP data"
+        LOG "  - Decode RCOIs & PLMNs"
+        LOG ""
+        LOG "[A] Start Scan"
+        LOG "[B] Exit"
+    else
+        LOG "Mode: BEACON ONLY"
+        LOG "(wpa-supplicant-openssl missing)"
+        LOG ""
+        LOG "Without ANQP support:"
+        LOG "  + Detect Passpoint APs"
+        LOG "  + Read beacon RCOIs (up to 3)"
+        LOG "  - No domain names"
+        LOG "  - No NAI realms"
+        LOG "  - No PLMN/carrier info"
+        LOG "  - No venue/operator info"
+        LOG ""
+        LOG "[A] Start Beacon-Only Scan"
+        LOG "[B] Install wpa-supplicant"
+        LOG "[C] Exit"
+    fi
     LOG ""
 }
 
 configure_scan() {
+    # Check dependencies first
+    check_dependencies
+
     while true; do
         show_config_menu
 
         local btn=$(WAIT_FOR_INPUT)
-        case "$btn" in
-            A)
-                return 0
-                ;;
-            B)
-                LOG "Goodbye"
-                exit 0
-                ;;
-        esac
+
+        if $ANQP_AVAILABLE; then
+            case "$btn" in
+                A)
+                    return 0
+                    ;;
+                B)
+                    LOG "Goodbye"
+                    exit 0
+                    ;;
+            esac
+        else
+            case "$btn" in
+                A)
+                    # Beacon-only scan
+                    return 0
+                    ;;
+                B)
+                    # Try to install
+                    if install_wpa_supplicant; then
+                        check_dependencies
+                    fi
+                    ;;
+                C)
+                    LOG "Goodbye"
+                    exit 0
+                    ;;
+            esac
+        fi
     done
 }
 
@@ -2280,9 +2467,42 @@ if ! phase_1b_group_ssids; then
     exit 1
 fi
 
-# Phase 1C: Active ANQP Query via wpa_supplicant
-LOG "Querying ANQP data (~15s/network)..."
-phase_1c_anqp_query
+# Phase 1C: Active ANQP Query via wpa_supplicant (if available)
+if $ANQP_AVAILABLE; then
+    LOG "Querying ANQP data (~15s/network)..."
+    phase_1c_anqp_query
+else
+    LOG ""
+    LOG "=== BEACON-ONLY MODE ==="
+    LOG "Skipping ANQP queries (wpa-supplicant-openssl not installed)"
+    LOG ""
+    # In beacon-only mode, decode and display beacon RCOIs
+    if [ -f "$UNIQUE_SSIDS_FILE" ]; then
+        LOG "Decoding beacon RCOIs..."
+        while IFS='|' read -r ssid channel bssid rssi rcoi ano count; do
+            if [ -n "$rcoi" ] && [ "$rcoi" != "N/A" ]; then
+                # Parse and decode the beacon RCOI
+                parsed_rcois=$(parse_beacon_rcoi "$rcoi")
+                if [ -n "$parsed_rcois" ]; then
+                    decoded_list=""
+                    IFS_OLD="$IFS"
+                    IFS=','
+                    for oi in $parsed_rcois; do
+                        oi=$(echo "$oi" | tr -d ' ')
+                        decoded=$(decode_rcoi "$oi")
+                        [ -n "$decoded_list" ] && decoded_list="$decoded_list; "
+                        decoded_list="$decoded_list$decoded"
+                    done
+                    IFS="$IFS_OLD"
+                    if [ -n "$decoded_list" ]; then
+                        LOG "  $ssid: $decoded_list"
+                        echo "BEACON_RCOI|$bssid|$ssid|$decoded_list" >> "$RESULTS_FILE"
+                    fi
+                fi
+            fi
+        done < "$UNIQUE_SSIDS_FILE"
+    fi
+fi
 
 # Show results
 show_results_summary
@@ -2323,7 +2543,7 @@ if [ "$btn" = "A" ]; then
             # Show all ANQP data for this BSSID
             grep "|$bssid|" "$RESULTS_FILE" | while IFS='|' read -r type b s data; do
                 case "$type" in
-                    ANQP_RCOI)
+                    ANQP_RCOI|BEACON_RCOI)
                         LOG "  RCOI: $data"
                         ;;
                     ANQP_VENUE)
