@@ -109,20 +109,17 @@ ANQP_AVAILABLE=false
 
 # Check if wpa_supplicant with HS2.0 support is installed
 check_wpa_supplicant() {
+    # Check for wpad-openssl (full hostapd+wpa_supplicant with HS2.0)
+    if opkg list-installed 2>/dev/null | grep -q "^wpad-openssl "; then
+        return 0
+    fi
     # Check if wpa-supplicant-openssl is installed (has HS2.0 support)
-    if opkg list-installed 2>/dev/null | grep -q "wpa-supplicant-openssl"; then
+    if opkg list-installed 2>/dev/null | grep -q "^wpa-supplicant-openssl "; then
         return 0
     fi
     # Check if wpa-supplicant-mesh-openssl is installed (also has HS2.0)
-    if opkg list-installed 2>/dev/null | grep -q "wpa-supplicant-mesh-openssl"; then
+    if opkg list-installed 2>/dev/null | grep -q "^wpa-supplicant-mesh-openssl "; then
         return 0
-    fi
-    # Check if wpa_cli exists and supports interworking
-    if command -v wpa_cli >/dev/null 2>&1; then
-        # Try to check if interworking is supported
-        if wpa_cli -h 2>&1 | grep -q "interworking"; then
-            return 0
-        fi
     fi
     return 1
 }
@@ -139,10 +136,10 @@ check_internet() {
     return 1
 }
 
-# Install wpa-supplicant-openssl
+# Install wpad-openssl (includes wpa_supplicant with HS2.0 support)
 install_wpa_supplicant() {
     LOG ""
-    LOG "Installing wpa-supplicant-openssl..."
+    LOG "Installing HS2.0 support..."
     LOG ""
 
     # Check internet first
@@ -189,38 +186,50 @@ install_wpa_supplicant() {
         esac
     fi
 
-    LOG "Installing wpa-supplicant-openssl..."
+    LOG "Installing wpad-openssl..."
 
-    # Install the package
-    if ! opkg install wpa-supplicant-openssl >/dev/null 2>&1; then
+    # Try wpad-openssl first (full package with hostapd+wpa_supplicant)
+    if opkg install wpad-openssl >/dev/null 2>&1; then
         SPINNER OFF
         LOG ""
-        LOG "ERROR: Installation failed!"
+        LOG "SUCCESS! wpad-openssl installed."
+        LOG "ANQP queries now available."
         LOG ""
-        LOG "Try manually:"
-        LOG "  opkg update"
-        LOG "  opkg install wpa-supplicant-openssl"
+        sleep 2
+        return 0
+    fi
+
+    # Fall back to wpa-supplicant-openssl
+    LOG "Trying wpa-supplicant-openssl..."
+    if opkg install wpa-supplicant-openssl >/dev/null 2>&1; then
+        SPINNER OFF
         LOG ""
-        LOG "[A] Retry  [B] Continue without"
-        local btn=$(WAIT_FOR_INPUT)
-        case "$btn" in
-            A)
-                install_wpa_supplicant
-                return $?
-                ;;
-            *)
-                return 1
-                ;;
-        esac
+        LOG "SUCCESS! wpa-supplicant-openssl installed."
+        LOG "ANQP queries now available."
+        LOG ""
+        sleep 2
+        return 0
     fi
 
     SPINNER OFF
     LOG ""
-    LOG "SUCCESS! wpa-supplicant-openssl installed."
-    LOG "ANQP queries now available."
+    LOG "ERROR: Installation failed!"
     LOG ""
-    sleep 2
-    return 0
+    LOG "Try manually:"
+    LOG "  opkg update"
+    LOG "  opkg install wpad-openssl"
+    LOG ""
+    LOG "[A] Retry  [B] Continue without"
+    local btn=$(WAIT_FOR_INPUT)
+    case "$btn" in
+        A)
+            install_wpa_supplicant
+            return $?
+            ;;
+        *)
+            return 1
+            ;;
+    esac
 }
 
 # Check dependencies and set ANQP_AVAILABLE flag
@@ -2350,8 +2359,8 @@ show_results_summary() {
         LOG "Beacon Data from $ap_count APs:"
         LOG "  Beacon RCOIs:  $beacon_rcoi_count"
         LOG ""
-        LOG "(Install wpa-supplicant-openssl"
-        LOG " for full ANQP data)"
+        LOG "(Install wpad-openssl for"
+        LOG " full ANQP data)"
     fi
     LOG ""
     LOG "Results: $RESULTS_FILE"
@@ -2378,7 +2387,7 @@ show_config_menu() {
         LOG "[B] Exit"
     else
         LOG "Mode: BEACON ONLY"
-        LOG "(wpa-supplicant-openssl missing)"
+        LOG "(wpad-openssl missing)"
         LOG ""
         LOG "Without ANQP support:"
         LOG "  + Detect Passpoint APs"
@@ -2474,7 +2483,7 @@ if $ANQP_AVAILABLE; then
 else
     LOG ""
     LOG "=== BEACON-ONLY MODE ==="
-    LOG "Skipping ANQP queries (wpa-supplicant-openssl not installed)"
+    LOG "Skipping ANQP queries (wpad-openssl not installed)"
     LOG ""
     # In beacon-only mode, decode and display beacon RCOIs
     if [ -f "$UNIQUE_SSIDS_FILE" ]; then
