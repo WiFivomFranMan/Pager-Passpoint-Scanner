@@ -64,9 +64,34 @@ For full Passpoint analysis including ANQP queries, `wpad-openssl` is required. 
 2. Offer to install it automatically (requires internet)
 3. Fall back to beacon-only mode if unavailable
 
-To install manually:
+#### Package Replacement Notice
+
+A fresh Pager comes with `wpad-basic-mbedtls` installed. To enable ANQP queries, the payload will offer to replace it with `wpad-openssl`.
+
+**What this means:**
+- `wpad-openssl` is a **full replacement** with the same functionality plus HS2.0 support
+- All WiFi functions (AP mode, client mode, monitor mode) continue to work normally
+- The only difference is the crypto library (openssl vs mbedtls) and added HS2.0/interworking support
+
+You will see a confirmation prompt:
+```
+Package conflict detected:
+  wpad-basic-mbedtls
+
+wpad-openssl will REPLACE this.
+It has same features + HS2.0.
+All WiFi functions will still work.
+
+[A] Replace  [B] Cancel
+```
+
+Press **[A]** to proceed with the replacement, or **[B]** to cancel and use beacon-only mode.
+
+#### Manual Installation
+
 ```bash
 opkg update
+opkg remove wpad-basic-mbedtls
 opkg install wpad-openssl
 ```
 
