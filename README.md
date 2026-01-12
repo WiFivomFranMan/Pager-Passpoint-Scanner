@@ -31,34 +31,46 @@ A Passpoint/Hotspot 2.0 reconnaissance tool for the WiFi Pineapple Pager. Detect
 
 - WiFi Pineapple Pager
 - Monitor mode capable WiFi adapter (wlan1mon)
-- wpa_supplicant with interworking/HS2.0 support
+- `wpad-openssl` for ANQP queries (optional - payload can install it)
 
 ## Installation
 
-### Prerequisites
+### Method 1: From Payload Library (Recommended)
 
-Install wpa_supplicant with Hotspot 2.0 support (required for ANQP queries):
+Pull the payload directly from the Hak5 payload library on your Pager.
+
+### Method 2: Manual Install via SCP
 
 ```bash
-opkg update
-opkg install wpa-supplicant-openssl
+# Create the directory on Pager
+ssh root@172.16.52.1 'mkdir -p /root/payloads/user/reconnaissance/passpoint_scanner'
+
+# Copy the payload
+scp payload.sh root@172.16.52.1:/root/payloads/user/reconnaissance/passpoint_scanner/
 ```
 
-> **Note**: The standard `wpa-supplicant` package may not include HS2.0/interworking support. The `-openssl` variant includes these features.
-
-### On WiFi Pineapple Pager
-
-Copy the payload to the Pager's payload directory:
+### Method 3: Clone via Git on Pager
 
 ```bash
-scp payload.sh root@172.16.52.1:/root/payloads/library/user/reconnaissance/passpoint_scanner/payload.sh
-```
-
-Or clone directly on the Pager:
-```bash
-cd /root/payloads/library/user/reconnaissance/
+ssh root@172.16.52.1
+cd /root/payloads/user/reconnaissance/
 git clone https://github.com/WiFivomFranMan/Pager-Passpoint-Scanner.git passpoint_scanner
 ```
+
+### ANQP Support (Optional)
+
+For full Passpoint analysis including ANQP queries, `wpad-openssl` is required. The payload will:
+1. Detect if it's missing on startup
+2. Offer to install it automatically (requires internet)
+3. Fall back to beacon-only mode if unavailable
+
+To install manually:
+```bash
+opkg update
+opkg install wpad-openssl
+```
+
+> **Note**: Without `wpad-openssl`, the scanner runs in **Beacon-Only Mode** - it will detect Passpoint APs and decode RCOIs from beacons, but won't query ANQP data (NAI realms, domains, venue info).
 
 ## Usage
 
