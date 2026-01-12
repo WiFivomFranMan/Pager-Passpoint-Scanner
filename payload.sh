@@ -165,16 +165,20 @@ install_wpa_supplicant() {
     fi
 
     LOG "Internet OK. Updating packages..."
-    SPINNER ON
 
     # Update package list (ignore errors - some feeds may 404 but base feeds work)
-    opkg update >/dev/null 2>&1 || true
+    opkg update 2>&1 | grep -v "Failed to download" | head -5
 
+    LOG ""
     LOG "Installing wpad-openssl..."
 
+    # Capture install output for error reporting
+    local install_output
+    local install_err
+
     # Try wpad-openssl first (full package with hostapd+wpa_supplicant)
-    if opkg install wpad-openssl >/dev/null 2>&1; then
-        SPINNER OFF
+    install_output=$(opkg install wpad-openssl 2>&1)
+    if [ $? -eq 0 ]; then
         LOG ""
         LOG "SUCCESS! wpad-openssl installed."
         LOG "ANQP queries now available."
@@ -182,11 +186,12 @@ install_wpa_supplicant() {
         sleep 2
         return 0
     fi
+    install_err="$install_output"
 
     # Fall back to wpa-supplicant-openssl
     LOG "Trying wpa-supplicant-openssl..."
-    if opkg install wpa-supplicant-openssl >/dev/null 2>&1; then
-        SPINNER OFF
+    install_output=$(opkg install wpa-supplicant-openssl 2>&1)
+    if [ $? -eq 0 ]; then
         LOG ""
         LOG "SUCCESS! wpa-supplicant-openssl installed."
         LOG "ANQP queries now available."
@@ -195,9 +200,11 @@ install_wpa_supplicant() {
         return 0
     fi
 
-    SPINNER OFF
     LOG ""
     LOG "ERROR: Installation failed!"
+    LOG ""
+    # Show last error (truncated for display)
+    LOG "$(echo "$install_err" | grep -i "error\|cannot\|conflict" | head -2)"
     LOG ""
     LOG "Try manually:"
     LOG "  opkg update"
