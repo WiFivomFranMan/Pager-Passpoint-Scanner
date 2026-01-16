@@ -31,7 +31,7 @@ A Passpoint/Hotspot 2.0 reconnaissance tool for the WiFi Pineapple Pager. Detect
 
 - WiFi Pineapple Pager
 - Monitor mode capable WiFi adapter (wlan1mon)
-- `wpad-openssl` for ANQP queries (optional - payload can install it)
+- `wpad` for ANQP queries (optional - payload can install it)
 
 ## Installation
 
@@ -59,17 +59,17 @@ git clone https://github.com/WiFivomFranMan/Pager-Passpoint-Scanner.git passpoin
 
 ### ANQP Support (Optional)
 
-For full Passpoint analysis including ANQP queries, `wpad-openssl` is required. The payload will:
+For full Passpoint analysis including ANQP queries, `wpad` is required. The payload will:
 1. Detect if it's missing on startup
 2. Offer to install it automatically (requires internet)
 3. Fall back to beacon-only mode if unavailable
 
 #### Package Replacement Notice
 
-A fresh Pager comes with `wpad-basic-mbedtls` installed. To enable ANQP queries, the payload will offer to replace it with `wpad-openssl`.
+A fresh Pager comes with `wpad-basic-mbedtls` installed. To enable ANQP queries, the payload will offer to replace it with `wpad`.
 
 **What this means:**
-- `wpad-openssl` is a **full replacement** with the same functionality plus HS2.0 support
+- `wpad` is a **full replacement** with the same functionality plus HS2.0 support
 - All WiFi functions (AP mode, client mode, monitor mode) continue to work normally
 - The only difference is the crypto library (openssl vs mbedtls) and added HS2.0/interworking support
 
@@ -78,7 +78,7 @@ You will see a confirmation prompt:
 Package conflict detected:
   wpad-basic-mbedtls
 
-wpad-openssl will REPLACE this.
+wpad will REPLACE this.
 It has same features + HS2.0.
 All WiFi functions will still work.
 
@@ -92,10 +92,10 @@ Press **[A]** to proceed with the replacement, or **[B]** to cancel and use beac
 ```bash
 opkg update
 opkg remove wpad-basic-mbedtls
-opkg install wpad-openssl
+opkg install wpad wpa-cli
 ```
 
-> **Note**: Without `wpad-openssl`, the scanner runs in **Beacon-Only Mode** - it will detect Passpoint APs and decode RCOIs from beacons, but won't query ANQP data (NAI realms, domains, venue info).
+> **Note**: Without `wpad`, the scanner runs in **Beacon-Only Mode** - it will detect Passpoint APs and decode RCOIs from beacons, but won't query ANQP data (NAI realms, domains, venue info).
 
 ## Usage
 
